@@ -15,7 +15,7 @@ import units
 
 app = dash.Dash(
     __name__,
-    title="CryoCalculator",
+    title="ThermoSuiteVector",
     update_title=None,
     suppress_callback_exceptions=True,
     compress=True,
@@ -308,7 +308,7 @@ def serve_layout():
             html.Header(
                 className="masthead",
                 children=[
-                    html.H1("CryoCalculator", className="wordmark"),
+                    html.H1("ThermoSuiteVector", className="wordmark"),
                     html.Div(
                         className="masthead-model", id="masthead-model",
                         children=_model_line(lim),
@@ -1089,7 +1089,7 @@ def _export_text(lim, rows, in_dome, liquid, vapor,
 
     second_label = "Densità" if mode == "trho" else "Pressione"
     out = [
-        line(["CryoCalculator", lim["label"]]),
+        line(["ThermoSuiteVector", lim["label"]]),
         line(["Modello", lim["reference"]]),
         line(["Validità", f"{lim['t_min_K']:g}–{lim['t_max_K']:g} K",
               f"≤ {lim['p_max_Pa'] / 1e6:g} MPa"]),
@@ -1392,7 +1392,7 @@ def _scan_export(scan, lim, display, t_unit, p_unit, sep, decimal):
     fixed_unit = t_unit if fixed_kind == "temperature" else p_unit
 
     out = [
-        line(["CryoCalculator", lim["label"], kind_label]),
+        line(["ThermoSuiteVector", lim["label"], kind_label]),
         line(["Modello", lim["reference"]]),
         line([kind_label + " a", units.from_si(fixed_kind, fixed_unit, scan["fixed_si"]),
               units.label(fixed_kind, fixed_unit)]),
@@ -1510,7 +1510,7 @@ def download_scan_csv(_clicks, text, fluid):
     fluid = _one_of(fluid, backend_bridge.FLUIDS, backend_bridge.DEFAULT_FLUID)
     label = backend_bridge.FLUIDS[fluid]["label"].lower()
     return dict(content="\ufeff" + text,
-                filename=f"cryocalculator-{label}-scansione.csv")
+                filename=f"thermosuitevector-{label}-scansione.csv")
 
 
 @app.callback(
@@ -1541,8 +1541,8 @@ def pin_state(_pin, _unpin, _fluid, current):
 app.clientside_callback(
     """
     function (text) {
-        if (window.__cryoAnnounce) { window.clearTimeout(window.__cryoAnnounce); }
-        window.__cryoAnnounce = window.setTimeout(function () {
+        if (window.__thermoAnnounce) { window.clearTimeout(window.__thermoAnnounce); }
+        window.__thermoAnnounce = window.setTimeout(function () {
             var node = document.getElementById("live-announce");
             if (node) { node.textContent = text || ""; }
         }, 450);
@@ -1584,7 +1584,7 @@ app.clientside_callback(
             format: "svg",
             width: 1400,
             height: 900,
-            filename: "cryocalculator-" + (fluid || "carta")
+            filename: "thermosuitevector-" + (fluid || "carta")
         });
         return "Carta esportata in SVG.";
     }
@@ -1607,7 +1607,7 @@ def download_csv(_clicks, text, fluid):
         raise dash.exceptions.PreventUpdate
     fluid = _one_of(fluid, backend_bridge.FLUIDS, backend_bridge.DEFAULT_FLUID)
     label = backend_bridge.FLUIDS[fluid]["label"].lower()
-    return dict(content="\ufeff" + text, filename=f"cryocalculator-{label}.csv")
+    return dict(content="\ufeff" + text, filename=f"thermosuitevector-{label}.csv")
 
 
 def _sat_note(lim, t_si, t_unit):

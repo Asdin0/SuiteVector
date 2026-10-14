@@ -12,8 +12,7 @@
   font-family: var(--font-label);
   font-size: var(--step-2);
   font-weight: 700;
-  letter-spacing: var(--track-label);
-  text-transform: uppercase;
+  letter-spacing: var(--track-tight);
   color: var(--ink);
 }
 
