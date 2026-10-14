@@ -1,0 +1,15 @@
+# Production dependencies: the only file the Railway image (see Dockerfile) installs.
+# Development and test tools live in requirements-dev.txt.
+
+dash==4.1.0
+plotly==6.7.0
+Flask==3.1.3
+Werkzeug==3.1.8
+# app.py builds Dash with compress=True, which imports flask_compress at startup.
+flask-compress==1.25
+sympy==1.14.0
+# Nothing imports numpy directly, but sympy.lambdify compiles the Helmholtz terms against
+# it when it is installed. Without it lambdify falls back to mpmath, whose mpf results are
+# not JSON-serializable and fail every Dash callback for a state below the critical point.
+numpy==2.4.5
+gunicorn==26.2.0

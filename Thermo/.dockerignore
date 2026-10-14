@@ -1,0 +1,9 @@
+.git
+.venv
+venv
+**/.DS_Store
+**/__pycache__
+**/*.py[cod]
+**/.pytest_cache
+StateFunctionCalculator/test
+EfficiencyCalculator/test_*.py
