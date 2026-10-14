@@ -15,7 +15,7 @@ import units
 
 app = dash.Dash(
     __name__,
-    title="ThermoSuiteVector",
+    title="SuiteVector Thermo",
     update_title=None,
     suppress_callback_exceptions=True,
     compress=True,
@@ -308,7 +308,7 @@ def serve_layout():
             html.Header(
                 className="masthead",
                 children=[
-                    html.H1("ThermoSuiteVector", className="wordmark"),
+                    html.H1("SuiteVector Thermo", className="wordmark"),
                     html.Div(
                         className="masthead-model", id="masthead-model",
                         children=_model_line(lim),
@@ -1089,7 +1089,7 @@ def _export_text(lim, rows, in_dome, liquid, vapor,
 
     second_label = "Densità" if mode == "trho" else "Pressione"
     out = [
-        line(["ThermoSuiteVector", lim["label"]]),
+        line(["SuiteVector Thermo", lim["label"]]),
         line(["Modello", lim["reference"]]),
         line(["Validità", f"{lim['t_min_K']:g}–{lim['t_max_K']:g} K",
               f"≤ {lim['p_max_Pa'] / 1e6:g} MPa"]),
@@ -1392,7 +1392,7 @@ def _scan_export(scan, lim, display, t_unit, p_unit, sep, decimal):
     fixed_unit = t_unit if fixed_kind == "temperature" else p_unit
 
     out = [
-        line(["ThermoSuiteVector", lim["label"], kind_label]),
+        line(["SuiteVector Thermo", lim["label"], kind_label]),
         line(["Modello", lim["reference"]]),
         line([kind_label + " a", units.from_si(fixed_kind, fixed_unit, scan["fixed_si"]),
               units.label(fixed_kind, fixed_unit)]),
@@ -1510,7 +1510,7 @@ def download_scan_csv(_clicks, text, fluid):
     fluid = _one_of(fluid, backend_bridge.FLUIDS, backend_bridge.DEFAULT_FLUID)
     label = backend_bridge.FLUIDS[fluid]["label"].lower()
     return dict(content="\ufeff" + text,
-                filename=f"thermosuitevector-{label}-scansione.csv")
+                filename=f"suitevector-thermo-{label}-scansione.csv")
 
 
 @app.callback(
@@ -1584,7 +1584,7 @@ app.clientside_callback(
             format: "svg",
             width: 1400,
             height: 900,
-            filename: "thermosuitevector-" + (fluid || "carta")
+            filename: "suitevector-thermo-" + (fluid || "carta")
         });
         return "Carta esportata in SVG.";
     }
@@ -1607,7 +1607,7 @@ def download_csv(_clicks, text, fluid):
         raise dash.exceptions.PreventUpdate
     fluid = _one_of(fluid, backend_bridge.FLUIDS, backend_bridge.DEFAULT_FLUID)
     label = backend_bridge.FLUIDS[fluid]["label"].lower()
-    return dict(content="\ufeff" + text, filename=f"thermosuitevector-{label}.csv")
+    return dict(content="\ufeff" + text, filename=f"suitevector-thermo-{label}.csv")
 
 
 def _sat_note(lim, t_si, t_unit):
