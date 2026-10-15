@@ -72,6 +72,22 @@
   border-color: var(--ink);
 }
 
+/* Dash paints any focused dropdown with its own purple. After a click the menu keeps its
+   resting border; from the keyboard it gets the ink ring. */
+.named-control .dash-dropdown:focus { outline: none; border-color: var(--rule-strong); }
+.named-control .dash-dropdown.field-unit:focus { border-left-width: 0; }
+.named-control .dash-dropdown.unit-pick-select:focus {
+  border-color: transparent;
+  border-bottom-color: var(--rule);
+}
+
+.named-control .dash-dropdown:focus-visible,
+.named-control .dash-dropdown.unit-pick-select:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 1px;
+  border-color: var(--ink);
+}
+
 .dash-dropdown-grid-container {
   width: 100%;
   grid-template-columns: 1fr auto;

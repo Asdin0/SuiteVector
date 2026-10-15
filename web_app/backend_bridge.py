@@ -81,6 +81,43 @@ PROPERTIES = (
     {"key": "entropy_J_kg_K", "symbol": "s", "name": "Entropia", "unit": "J/(kg·K)", "kind": "specific_entropy"},
 )
 
+# The rest of what RealFluid._state_function_ returns, in the order the table shows it.
+# A symbol's "_" opens its subscript.
+PROPERTY_GROUPS = (
+    {"key": "caloric", "title": "Calori specifici e suono", "properties": (
+        {"key": "isobaric_heat_capacity_J_kg_K", "symbol": "c_p", "name": "Calore specifico isobaro", "unit": "J/(kg·K)", "kind": "specific_entropy"},
+        {"key": "isochoric_heat_capacity_J_kg_K", "symbol": "c_v", "name": "Calore specifico isocoro", "unit": "J/(kg·K)", "kind": "specific_entropy"},
+        {"key": "heat_capacity_ratio", "symbol": "γ", "name": "Rapporto dei calori specifici", "unit": "—", "kind": "dimensionless"},
+        {"key": "speed_of_sound_m_s", "symbol": "w", "name": "Velocità del suono", "unit": "m/s", "kind": "speed"},
+    )},
+    {"key": "expansion", "title": "Laminazione ed espansione", "properties": (
+        {"key": "joule_thomson_coefficient_K_Pa", "symbol": "μ_JT", "name": "Coefficiente di Joule-Thomson", "unit": "K/Pa", "kind": "temperature_per_pressure"},
+        {"key": "isentropic_expansion_coefficient", "symbol": "k_s", "name": "Esponente isoentropico", "unit": "—", "kind": "dimensionless"},
+        {"key": "isothermal_expansion_coefficient", "symbol": "k_T", "name": "Esponente isotermo", "unit": "—", "kind": "dimensionless"},
+    )},
+    {"key": "compressibility", "title": "Dilatazione e comprimibilità", "properties": (
+        {"key": "volume_expansivity_1_K", "symbol": "β", "name": "Dilatazione termica isobara", "unit": "1/K", "kind": "inverse_temperature"},
+        {"key": "isothermal_compressibility_1_Pa", "symbol": "κ_T", "name": "Comprimibilità isoterma", "unit": "1/Pa", "kind": "inverse_pressure"},
+        {"key": "isothermal_bulk_modulus_Pa", "symbol": "K_T", "name": "Modulo di comprimibilità isotermo", "unit": "Pa", "kind": "pressure"},
+        {"key": "adiabatic_compressibility_1_Pa", "symbol": "κ_s", "name": "Comprimibilità isoentropica", "unit": "1/Pa", "kind": "inverse_pressure"},
+        {"key": "adiabatic_bulk_modulus_Pa", "symbol": "K_s", "name": "Modulo di comprimibilità isoentropico", "unit": "Pa", "kind": "pressure"},
+    )},
+    {"key": "energy", "title": "Energie libere e fugacità", "properties": (
+        {"key": "gibbs_energy_J_kg", "symbol": "g", "name": "Energia di Gibbs", "unit": "J/kg", "kind": "specific_energy"},
+        {"key": "helmholtz_energy_J_kg", "symbol": "a", "name": "Energia di Helmholtz", "unit": "J/kg", "kind": "specific_energy"},
+        {"key": "fugacity_coefficient", "symbol": "φ", "name": "Coefficiente di fugacità", "unit": "—", "kind": "dimensionless"},
+    )},
+    {"key": "eos", "title": "Derivate e coefficienti viriali", "properties": (
+        {"key": "pressure_temperature_derivative_Pa_K", "symbol": "(∂P/∂T)_ρ", "name": "Pendenza dell'isocora", "unit": "Pa/K", "kind": "pressure_per_temperature"},
+        {"key": "pressure_density_derivative_Pa_m3_kg", "symbol": "(∂P/∂ρ)_T", "name": "Pendenza dell'isoterma P(ρ)", "unit": "Pa·m³/kg", "kind": "pressure_per_density"},
+        {"key": "pressure_density_second_derivative_Pa_m6_kg2", "symbol": "(∂²P/∂ρ²)_T", "name": "Curvatura dell'isoterma P(ρ)", "unit": "Pa·m⁶/kg²", "kind": "pressure_per_density_squared"},
+        {"key": "second_virial_coefficient_m3_kg", "symbol": "B", "name": "Secondo coefficiente viriale", "unit": "m³/kg", "kind": "inverse_density"},
+        {"key": "third_virial_coefficient_m6_kg2", "symbol": "C", "name": "Terzo coefficiente viriale", "unit": "m⁶/kg²", "kind": "inverse_density_squared"},
+    )},
+)
+
+STATE_PROPERTIES = PROPERTIES + tuple(p for group in PROPERTY_GROUPS for p in group["properties"])
+
 SATURATION_PROPERTIES = (
     {"key": "dew_point_pressure_Pa", "symbol": "P_dew", "name": "Pressione di rugiada", "unit": "Pa", "kind": "pressure"},
     {"key": "bubble_point_pressure_Pa", "symbol": "P_bub", "name": "Pressione di bolla", "unit": "Pa", "kind": "pressure"},
@@ -131,7 +168,12 @@ def limits(fluid_key: str) -> dict:
         "p_melting_Pa": c.melting_pressure_Pa,
         "molar_mass_kg_mol": c.molar_mass_kg_mol,
         "acentric_factor": c.acentric_factor,
+        "fugacity_defined": bool(f.fugacity_coefficient_defined),
     }
+
+
+def defined(fluid_key: str, prop_key: str) -> bool:
+    return prop_key != "fugacity_coefficient" or limits(fluid_key)["fugacity_defined"]
 
 
 def _safe(fn, *args):
@@ -166,7 +208,7 @@ def saturated_pair(fluid_key: str, t_K: float) -> typing.Optional[dict]:
             "phase": key,
             "phase_label": label,
         }
-        for prop in PROPERTIES:
+        for prop in STATE_PROPERTIES:
             entry[prop["key"]] = getattr(result, prop["key"], None)
         pair[key] = entry
 
@@ -225,7 +267,7 @@ def state(fluid_key: str, t_K: float, p_Pa: typing.Optional[float] = None,
         "phase": result.phase,
         "phase_label": PHASE_LABELS.get(result.phase, "—"),
     }
-    for prop in PROPERTIES + SATURATION_PROPERTIES:
+    for prop in STATE_PROPERTIES + SATURATION_PROPERTIES:
         out[prop["key"]] = getattr(result, prop["key"], None)
 
     out["pressure_is_derived"] = out["pressure_Pa"] is None
@@ -382,7 +424,7 @@ def scan(fluid_key: str, axis: str, fixed_si: float, lo_si: float, hi_si: float,
             row.update(status="out-of-range")
         else:
             row["phase"] = resolved.get("phase")
-            for prop in PROPERTIES:
+            for prop in STATE_PROPERTIES:
                 row[prop["key"]] = resolved.get(prop["key"])
         rows.append(row)
 

@@ -23,7 +23,8 @@ def parts(value: typing.Optional[float], decimals: int = 4) -> dict:
 
     magnitude = abs(value)
     if magnitude and (magnitude >= 1e6 or magnitude < 1e-3):
-        mantissa, exponent = f"{value:.{max(decimals, SIGNIFICANT - 1)}e}".split("e")
+        # decimals is counted for fixed notation; a mantissa always keeps SIGNIFICANT digits.
+        mantissa, exponent = f"{value:.{SIGNIFICANT - 1}e}".split("e")
         integer, _, fraction = mantissa.partition(".")
         return {
             "integer": integer,

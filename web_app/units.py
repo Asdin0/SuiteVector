@@ -40,6 +40,14 @@ UNITS = {
         "si": "—",
         "options": {"—": {"label": "—", "name": "adimensionale", "to_si": lambda v: v, "from_si": lambda v: v, "decimals": 5}},
     },
+    "speed": {
+        "si": "m/s",
+        "options": {"m/s": {"label": "m/s", "name": "metro al secondo", "to_si": lambda v: v, "from_si": lambda v: v, "decimals": 3}},
+    },
+    "inverse_temperature": {
+        "si": "1/K",
+        "options": {"1/K": {"label": "1/K", "name": "kelvin alla meno uno", "to_si": lambda v: v, "from_si": lambda v: v, "decimals": 8}},
+    },
 }
 
 DEFAULTS = {
@@ -49,7 +57,30 @@ DEFAULTS = {
     "specific_energy": "kJ/kg",
     "specific_entropy": "kJ/(kg*K)",
     "dimensionless": "—",
+    "speed": "m/s",
+    "inverse_temperature": "1/K",
 }
+
+# Units built from the chosen pressure and density: each kind gives the power of every base
+# quantity, so the pressure menu also sets K/bar, 1/bar and bar/K and the density menu sets
+# m³/kg or cm³/g. Temperature differences stay in kelvin whatever scale the input uses.
+COMPOUND = {
+    "inverse_pressure": {"pressure": -1},
+    "temperature_per_pressure": {"kelvin": 1, "pressure": -1},
+    "pressure_per_temperature": {"pressure": 1, "kelvin": -1},
+    "pressure_per_density": {"pressure": 1, "density": -1},
+    "pressure_per_density_squared": {"pressure": 1, "density": -2},
+    "inverse_density": {"density": -1},
+    "inverse_density_squared": {"density": -2},
+}
+
+_SYMBOLS = {
+    "Pa": {"Pa": 1}, "kPa": {"kPa": 1}, "bar": {"bar": 1}, "MPa": {"MPa": 1},
+    "kg/m3": {"kg": 1, "m": -3}, "g/cm3": {"g": 1, "cm": -3},
+    "K": {"K": 1},
+}
+
+_SUPERSCRIPT = str.maketrans("-0123456789", "⁻⁰¹²³⁴⁵⁶⁷⁸⁹")
 
 
 def spec(kind: str, unit: str) -> dict:
@@ -83,3 +114,47 @@ def decimals(kind: str, unit: str) -> int:
 
 def options(kind: str) -> list:
     return [{"label": o["label"], "value": key} for key, o in UNITS[kind]["options"].items()]
+
+
+def _chosen(kind: str, display: dict) -> str:
+    unit = (display or {}).get(kind)
+    try:
+        return unit if unit in UNITS[kind]["options"] else DEFAULTS[kind]
+    except TypeError:
+        return DEFAULTS[kind]
+
+
+def _compound(kind: str, display: dict):
+    powers, factor = {}, 1.0
+    for base, power in COMPOUND[kind].items():
+        if base == "kelvin":
+            unit = "K"
+        else:
+            unit = _chosen(base, display)
+            convert = spec(base, unit)
+            factor *= (convert["from_si"](1.0) ** power if power > 0
+                       else convert["to_si"](1.0) ** -power)
+        for symbol, exponent in _SYMBOLS[unit].items():
+            powers[symbol] = powers.get(symbol, 0) + exponent * power
+
+    def written(symbol, power):
+        return symbol if power == 1 else symbol + str(power).translate(_SUPERSCRIPT)
+
+    above = [written(s, p) for s, p in powers.items() if p > 0]
+    below = [written(s, -p) for s, p in powers.items() if p < 0]
+    text = "·".join(above) or "1"
+    return (f"{text}/{'·'.join(below)}" if below else text), factor
+
+
+def display_label(kind: str, display: dict) -> str:
+    if kind in COMPOUND:
+        return _compound(kind, display)[0]
+    return label(kind, _chosen(kind, display))
+
+
+def display_value(kind: str, display: dict, value):
+    if value is None:
+        return None
+    if kind in COMPOUND:
+        return value * _compound(kind, display)[1]
+    return from_si(kind, _chosen(kind, display), value)

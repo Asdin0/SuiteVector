@@ -4,6 +4,7 @@ import math as mth
 import sympy as sy
 import functools
 import typing
+import dataclasses
 
 
 class TwoPhaseError(ValueError):
@@ -18,6 +19,7 @@ class RealFluid(ABC):
     two_phase_pressure_tolerance_Pa=1
     saturated_density_tolerance=1e-9
     pressure_tolerance=1e-9
+    fugacity_coefficient_defined=False
 
     def __init__(self,
                  constants,
@@ -225,7 +227,14 @@ class RealFluid(ABC):
         tao_devpar_tao_helmholtz_r_r=reduced_temperature*partial_derivative_results.redtemp_pdev_redtemp_red_real_num_helmholtz(reduced_temperature,reduced_density)
         tao_devpar_helmholtz_tao_i_r=reduced_temperature*partial_derivative_results.redtemp_pdev_redtemp_red_ideal_num_helmholtz(reduced_temperature,reduced_density)
 
-        return models.HelmholtzFunctions(reduced_ideal_helmholtz=helmholtz_i_r,reduced_real_helmholtz=helmholtz_r_r,redtemp_pdev_redtemp_red_ideal_helmholtz=tao_devpar_helmholtz_tao_i_r,redtemp_pdev_redtemp_red_real_helmholtz=tao_devpar_tao_helmholtz_r_r,reddens_pdev_reddens_red_real_helmholtz=delta_devpar_delta_helmholtz_r_r)
+        delta2_devpar2_delta_helmholtz_r_r=reduced_density**2*partial_derivative_results.reddens_pdev2_reddens_red_real_num_helmholtz(reduced_temperature,reduced_density)
+        delta3_devpar3_delta_helmholtz_r_r=reduced_density**3*partial_derivative_results.reddens_pdev3_reddens_red_real_num_helmholtz(reduced_temperature,reduced_density)
+        tao2_devpar2_tao_helmholtz_i_r=reduced_temperature**2*partial_derivative_results.redtemp_pdev2_redtemp_red_ideal_num_helmholtz(reduced_temperature,reduced_density)
+        tao2_devpar2_tao_helmholtz_r_r=reduced_temperature**2*partial_derivative_results.redtemp_pdev2_redtemp_red_real_num_helmholtz(reduced_temperature,reduced_density)
+        delta_tao_devpar2_delta_tao_helmholtz_r_r=reduced_density*reduced_temperature*partial_derivative_results.reddens_redtemp_pdev2_red_real_num_helmholtz(reduced_temperature,reduced_density)
+
+        return models.HelmholtzFunctions(reduced_ideal_helmholtz=helmholtz_i_r,reduced_real_helmholtz=helmholtz_r_r,redtemp_pdev_redtemp_red_ideal_helmholtz=tao_devpar_helmholtz_tao_i_r,redtemp_pdev_redtemp_red_real_helmholtz=tao_devpar_tao_helmholtz_r_r,reddens_pdev_reddens_red_real_helmholtz=delta_devpar_delta_helmholtz_r_r,
+                                         reddens_pdev2_reddens_red_real_helmholtz=delta2_devpar2_delta_helmholtz_r_r,reddens_pdev3_reddens_red_real_helmholtz=delta3_devpar3_delta_helmholtz_r_r,redtemp_pdev2_redtemp_red_ideal_helmholtz=tao2_devpar2_tao_helmholtz_i_r,redtemp_pdev2_redtemp_red_real_helmholtz=tao2_devpar2_tao_helmholtz_r_r,reddens_redtemp_pdev2_red_real_helmholtz=delta_tao_devpar2_delta_tao_helmholtz_r_r)
 
     def _state_function_(self,t:float,real_density:float):
         helmholtz_values=self._helmholtz_values_(t,real_density)
@@ -234,13 +243,82 @@ class RealFluid(ABC):
         tao_devpar_helmholtz_tao_i_r=helmholtz_values.redtemp_pdev_redtemp_red_ideal_helmholtz
         tao_devpar_tao_helmholtz_r_r=helmholtz_values.redtemp_pdev_redtemp_red_real_helmholtz
         delta_devpar_delta_helmholtz_r_r=helmholtz_values.reddens_pdev_reddens_red_real_helmholtz
+        delta2_devpar2_delta_helmholtz_r_r=helmholtz_values.reddens_pdev2_reddens_red_real_helmholtz
+        delta3_devpar3_delta_helmholtz_r_r=helmholtz_values.reddens_pdev3_reddens_red_real_helmholtz
+        tao2_devpar2_tao_helmholtz_i_r=helmholtz_values.redtemp_pdev2_redtemp_red_ideal_helmholtz
+        tao2_devpar2_tao_helmholtz_r_r=helmholtz_values.redtemp_pdev2_redtemp_red_real_helmholtz
+        delta_tao_devpar2_delta_tao_helmholtz_r_r=helmholtz_values.reddens_redtemp_pdev2_red_real_helmholtz
 
         compressibility_factor=float(1+delta_devpar_delta_helmholtz_r_r)
         specifica_internal_energy=float(((tao_devpar_helmholtz_tao_i_r+tao_devpar_tao_helmholtz_r_r)*self.constants.universal_gas_constant_J_mol_K*t)/self.constants.molar_mass_kg_mol)
         specific_enthalpy=float((((tao_devpar_helmholtz_tao_i_r+tao_devpar_tao_helmholtz_r_r+delta_devpar_delta_helmholtz_r_r+1)*self.constants.universal_gas_constant_J_mol_K*t)/self.constants.molar_mass_kg_mol))
         specific_entropy=float(((tao_devpar_helmholtz_tao_i_r+tao_devpar_tao_helmholtz_r_r-helmholtz_i_r-helmholtz_r_r)*self.constants.universal_gas_constant_J_mol_K)/self.constants.molar_mass_kg_mol)
 
-        return models.StateFunctions(density_kg_m3=real_density,compressibility_factor=compressibility_factor,internal_energy_J_kg=specifica_internal_energy,enthalpy_J_kg=specific_enthalpy,entropy_J_kg_K=specific_entropy)
+        specific_gas_constant=self.constants.universal_gas_constant_J_mol_K/self.constants.molar_mass_kg_mol
+        density=float(real_density)
+        pressure=density*specific_gas_constant*t*compressibility_factor
+        density_term=float(1+2*delta_devpar_delta_helmholtz_r_r+delta2_devpar2_delta_helmholtz_r_r)
+        temperature_term=float(1+delta_devpar_delta_helmholtz_r_r-delta_tao_devpar2_delta_tao_helmholtz_r_r)
+
+        gibbs_energy=float((1+helmholtz_i_r+helmholtz_r_r+delta_devpar_delta_helmholtz_r_r)*specific_gas_constant*t)
+        helmholtz_energy=float((helmholtz_i_r+helmholtz_r_r)*specific_gas_constant*t)
+        isochoric_heat_capacity=float(-(tao2_devpar2_tao_helmholtz_i_r+tao2_devpar2_tao_helmholtz_r_r)*specific_gas_constant)
+        pressure_density_derivative=float(specific_gas_constant*t*density_term)
+        pressure_density_second_derivative=float((specific_gas_constant*t/density)*(2*delta_devpar_delta_helmholtz_r_r+4*delta2_devpar2_delta_helmholtz_r_r+delta3_devpar3_delta_helmholtz_r_r))
+        pressure_temperature_derivative=float(density*specific_gas_constant*temperature_term)
+        second_virial_coefficient,third_virial_coefficient=self._virial_coefficients_(t)
+
+        isobaric_heat_capacity=heat_capacity_ratio=speed_of_sound=joule_thomson_coefficient=volume_expansivity=None
+        isentropic_expansion_coefficient=adiabatic_compressibility=adiabatic_bulk_modulus=None
+        isothermal_expansion_coefficient=isothermal_compressibility=isothermal_bulk_modulus=None
+        fugacity_coefficient=None
+        if density_term>0:
+            volume_expansivity=(1/density)*pressure_temperature_derivative*(1/pressure_density_derivative)
+            if pressure>0:
+                isothermal_expansion_coefficient=(density/pressure)*pressure_density_derivative
+                isothermal_compressibility=1/(isothermal_expansion_coefficient*pressure)
+                isothermal_bulk_modulus=isothermal_expansion_coefficient*pressure
+            if isochoric_heat_capacity>0:
+                isobaric_heat_capacity=isochoric_heat_capacity+specific_gas_constant*temperature_term**2/density_term
+                heat_capacity_ratio=isobaric_heat_capacity/isochoric_heat_capacity
+                speed_of_sound_squared=specific_gas_constant*t*heat_capacity_ratio*density_term
+                speed_of_sound=mth.sqrt(speed_of_sound_squared)
+                joule_thomson_coefficient=(t*volume_expansivity-1)/(density*isobaric_heat_capacity)
+                if pressure>0:
+                    isentropic_expansion_coefficient=speed_of_sound_squared*density/pressure
+                    adiabatic_compressibility=1/(isentropic_expansion_coefficient*pressure)
+                    adiabatic_bulk_modulus=isentropic_expansion_coefficient*pressure
+        if self.fugacity_coefficient_defined and compressibility_factor>0:
+            fugacity_coefficient=mth.exp(compressibility_factor-1-mth.log(compressibility_factor)+helmholtz_r_r)
+
+        return models.StateFunctions(density_kg_m3=real_density,compressibility_factor=compressibility_factor,internal_energy_J_kg=specifica_internal_energy,enthalpy_J_kg=specific_enthalpy,entropy_J_kg_K=specific_entropy,
+                                     gibbs_energy_J_kg=gibbs_energy,
+                                     helmholtz_energy_J_kg=helmholtz_energy,
+                                     isochoric_heat_capacity_J_kg_K=isochoric_heat_capacity,
+                                     isobaric_heat_capacity_J_kg_K=isobaric_heat_capacity,
+                                     heat_capacity_ratio=heat_capacity_ratio,
+                                     speed_of_sound_m_s=speed_of_sound,
+                                     pressure_density_derivative_Pa_m3_kg=pressure_density_derivative,
+                                     pressure_density_second_derivative_Pa_m6_kg2=pressure_density_second_derivative,
+                                     pressure_temperature_derivative_Pa_K=pressure_temperature_derivative,
+                                     joule_thomson_coefficient_K_Pa=joule_thomson_coefficient,
+                                     isentropic_expansion_coefficient=isentropic_expansion_coefficient,
+                                     isothermal_expansion_coefficient=isothermal_expansion_coefficient,
+                                     volume_expansivity_1_K=volume_expansivity,
+                                     adiabatic_compressibility_1_Pa=adiabatic_compressibility,
+                                     adiabatic_bulk_modulus_Pa=adiabatic_bulk_modulus,
+                                     isothermal_compressibility_1_Pa=isothermal_compressibility,
+                                     isothermal_bulk_modulus_Pa=isothermal_bulk_modulus,
+                                     second_virial_coefficient_m3_kg=second_virial_coefficient,
+                                     third_virial_coefficient_m6_kg2=third_virial_coefficient,
+                                     fugacity_coefficient=fugacity_coefficient)
+
+    def _virial_coefficients_(self,t:float):
+        partial_derivative_results=self._numerical_functions_()[2]
+        reduced_temperature=self.constants.reference_temperature_K/t
+        second_virial_coefficient=float(partial_derivative_results.reddens_pdev_reddens_red_real_num_helmholtz(reduced_temperature,0.0)/self.constants.reference_density_kg_m3)
+        third_virial_coefficient=float(partial_derivative_results.reddens_pdev2_reddens_red_real_num_helmholtz(reduced_temperature,0.0)/self.constants.reference_density_kg_m3**2)
+        return second_virial_coefficient,third_virial_coefficient
 
     @functools.cache
     def _partial_derivatives_(self,helmholtz_i_r_expression,helmholtz_r_r_expression):
@@ -257,6 +335,18 @@ class RealFluid(ABC):
         devpar_tao_helmholtz_r_r_symbol=sy.diff(helmholtz_r_r_expression,t_r)
         devpar_tao_helmholtz_r_r_numerical=sy.lambdify((t_r,d_r),devpar_tao_helmholtz_r_r_symbol)
 
+        devpar3_delta_helmholtz_r_r_symbol=sy.diff(helmholtz_r_r_expression,d_r,3)
+        devpar3_delta_helmholtz_r_r_numerical=sy.lambdify((t_r,d_r),devpar3_delta_helmholtz_r_r_symbol)
+
+        devpar2_tao_helmholtz_i_r_symbol=sy.diff(helmholtz_i_r_expression,t_r,2)
+        devpar2_tao_helmholtz_i_r_numerical=sy.lambdify((t_r,d_r),devpar2_tao_helmholtz_i_r_symbol)
+
+        devpar2_tao_helmholtz_r_r_symbol=sy.diff(helmholtz_r_r_expression,t_r,2)
+        devpar2_tao_helmholtz_r_r_numerical=sy.lambdify((t_r,d_r),devpar2_tao_helmholtz_r_r_symbol)
+
+        devpar2_delta_tao_helmholtz_r_r_symbol=sy.diff(helmholtz_r_r_expression,d_r,t_r)
+        devpar2_delta_tao_helmholtz_r_r_numerical=sy.lambdify((t_r,d_r),devpar2_delta_tao_helmholtz_r_r_symbol)
+
         return models.HelmholtzFunctions(redtemp_pdev_redtemp_red_ideal_exp_helmholtz  =   devpar_helmholtz_tao_i_r_symbol,
                                 redtemp_pdev_redtemp_red_ideal_num_helmholtz  =   devpar_helmholtz_tao_i_r_numerical,
                                 redtemp_pdev_redtemp_red_real_exp_helmholtz   =   devpar_tao_helmholtz_r_r_symbol,
@@ -264,7 +354,15 @@ class RealFluid(ABC):
                                 reddens_pdev_reddens_red_real_exp_helmholtz   =   devpar_delta_helmholtz_r_r_symbol,
                                 reddens_pdev_reddens_red_real_num_helmholtz   =   devpar_delta_helmholtz_r_r_numerical,
                                 reddens_pdev2_reddens_red_real_exp_helmholtz  =   devpar2_delta_helmholtz_r_r_symbol,
-                                reddens_pdev2_reddens_red_real_num_helmholtz  =   devpar2_delta_helmholtz_r_r_numerical)
+                                reddens_pdev2_reddens_red_real_num_helmholtz  =   devpar2_delta_helmholtz_r_r_numerical,
+                                reddens_pdev3_reddens_red_real_exp_helmholtz  =   devpar3_delta_helmholtz_r_r_symbol,
+                                reddens_pdev3_reddens_red_real_num_helmholtz  =   devpar3_delta_helmholtz_r_r_numerical,
+                                redtemp_pdev2_redtemp_red_ideal_exp_helmholtz =   devpar2_tao_helmholtz_i_r_symbol,
+                                redtemp_pdev2_redtemp_red_ideal_num_helmholtz =   devpar2_tao_helmholtz_i_r_numerical,
+                                redtemp_pdev2_redtemp_red_real_exp_helmholtz  =   devpar2_tao_helmholtz_r_r_symbol,
+                                redtemp_pdev2_redtemp_red_real_num_helmholtz  =   devpar2_tao_helmholtz_r_r_numerical,
+                                reddens_redtemp_pdev2_red_real_exp_helmholtz  =   devpar2_delta_tao_helmholtz_r_r_symbol,
+                                reddens_redtemp_pdev2_red_real_num_helmholtz  =   devpar2_delta_tao_helmholtz_r_r_numerical)
 
     def calculated_functions(self,t:float,p:typing.Optional[float]=None,density:typing.Optional[float]=None):
         phase=self.phases(t,p,density)
@@ -284,11 +382,7 @@ class RealFluid(ABC):
         return models.OutputFunctions(temperature_input_K=t,
                             pressure_input_Pa=p,
                             phase=phase,
-                            density_kg_m3=state_function_results.density_kg_m3,
-                            compressibility_factor=state_function_results.compressibility_factor,
-                            internal_energy_J_kg=state_function_results.internal_energy_J_kg,
-                            enthalpy_J_kg=state_function_results.enthalpy_J_kg,
-                            entropy_J_kg_K=state_function_results.entropy_J_kg_K,
+                            **dataclasses.asdict(state_function_results),
                             dew_point_density_kg_m3=saturation.vapor_density_kg_m3 if saturation else None,
                             dew_point_pressure_Pa=saturation.vapor_pressure_Pa if saturation else None,
                             bubble_point_density_kg_m3=saturation.liquid_density_kg_m3 if saturation else None,

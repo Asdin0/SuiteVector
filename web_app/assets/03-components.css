@@ -193,12 +193,63 @@
   to   { clip-path: inset(0 0 0 0); }
 }
 
+/* Positioned so the visually hidden captions inside stay in its scroll box instead of
+   stretching the page from below the fold. */
 .datablock {
+  container: datablock / inline-size;
+  position: relative;
   padding: var(--s-5);
   display: flex;
   flex-direction: column;
   gap: var(--s-2);
-  overflow-y: auto;
+}
+
+/* Beside the chart the data column runs from the masthead to the foot of the window, past the
+   colophon under the chart, and scrolls on its own, so thirty rows or an open scan never
+   stretch the chart. The plate takes the sheet's tracks as a subgrid so the column can span the
+   colophon's row. Stacked below the chart, the page scrolls and the column header sticks to
+   the window instead. */
+@media (min-width: 1081px) {
+  .sheet {
+    display: grid;
+    grid-template-columns: minmax(0, 1.55fr) minmax(0, 0.85fr);
+    grid-template-rows: auto 1fr auto;
+  }
+
+  .masthead { grid-column: 1 / -1; grid-row: 1; }
+  .colophon { grid-column: 1; grid-row: 3; }
+
+  .plate {
+    grid-column: 1 / -1;
+    grid-row: 2 / 4;
+    grid-template-columns: subgrid;
+    grid-template-rows: subgrid;
+  }
+
+  .chart-frame { grid-column: 1; grid-row: 1; border-right: 0; }
+
+  .datablock {
+    grid-column: 2;
+    grid-row: 1 / 3;
+    border-left: 1px solid var(--ink);
+    contain: size;
+    overflow-y: auto;
+    scrollbar-gutter: stable;
+  }
+
+  /* Sticky offsets count from inside the column's padding: lift the header over it. */
+  .datablock .dome-head { top: calc(-1 * var(--s-5)); }
+
+  /* A fade at the foot of the column while rows continue below; at the end it rests on the
+     blank space after the last row. */
+  .datablock::after {
+    content: "";
+    position: sticky;
+    bottom: calc(-1 * var(--s-5));
+    flex: 0 0 var(--s-7);
+    background: linear-gradient(to bottom, transparent, var(--paper) 85%);
+    pointer-events: none;
+  }
 }
 
 .datablock-head {
@@ -298,27 +349,51 @@
   border-bottom: 1px solid var(--rule);
 }
 
-.row-head { display: flex; align-items: baseline; gap: var(--s-2); min-width: 0; }
+.row-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0 var(--s-2);
+  min-width: 0;
+}
 
+/* A fixed track for the symbols puts every name on one vertical; the derivatives' symbols are
+   wider than the track, so their names drop to the next line, indented to the same vertical. */
 .row-symbol {
   flex: 0 0 auto;
   font-family: var(--font-data);
   font-size: var(--step-0);
   color: var(--ink);
-  min-width: 2.6ch;
+  min-width: 2.25rem;
 }
 
+.row-symbol sub,
+.scan-symbol sub,
+.unit-pick-symbol sub { font-size: 0.72em; line-height: 0; }
+
 .row-note, .row-name { min-width: 0; }
+
+.row-head > .row-name,
+.row-head > .row-note { flex: 1 1 12ch; }
+
+.row-head.has-long-symbol > .row-name,
+.row-head.has-long-symbol > .row-note {
+  flex-basis: 100%;
+  padding-left: calc(2.25rem + var(--s-2));
+}
 
 .row-name {
   font-size: var(--step--1);
   color: var(--ink-2);
 }
 
+/* Block, not inline-block: a two-line name then lends the row its first baseline, so the
+   symbol sits on the name's first line. */
 .row-note > summary {
   cursor: pointer;
   list-style: none;
-  display: inline-block;
+  display: block;
+  width: fit-content;
   padding: var(--s-1) 0;
   margin: calc(var(--s-1) * -1) 0;
   text-decoration: underline dotted var(--rule-strong);
@@ -335,28 +410,32 @@
 }
 
 .row-value {
-
   display: block;
-  text-align: right;
+  text-align: left;
   white-space: nowrap;
-
   letter-spacing: 0;
   font-family: var(--font-data);
   font-size: var(--step-1);
   color: var(--ink);
-  white-space: nowrap;
 }
 
-.v-int { display: inline-block; text-align: right; }
-
-.v-frac {
+/* Values line up on their first digit: the minus sign hangs into the gap before the column,
+   and an empty sign box takes no room. */
+.v-sign {
   display: inline-block;
-
-  width: 6ch;
-  text-align: left;
+  width: 1ch;
+  margin-left: -1ch;
 }
 
 .v-dot { color: var(--ink-3); }
+
+.v-na {
+  font-family: var(--font-label);
+  font-size: var(--step--2);
+  letter-spacing: var(--track-label);
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
 .is-dome .v-dot { color: inherit; opacity: 0.55; }
 
 .v-exp {
@@ -436,23 +515,39 @@
 .dome-body { color: var(--twophase-ink); }
 .dome-tail { display: block; margin-top: var(--s-2); color: var(--ink-2); }
 
+/* The column header stays in view while the thirty rows below it scroll. */
 .dome-head {
   display: none;
+  position: sticky;
+  top: 0;
+  z-index: 1;
   align-items: baseline;
   gap: var(--s-3);
   margin-top: var(--s-4);
-  padding-bottom: var(--s-2);
+  padding: var(--s-2) 0;
+  background: var(--paper);
   border-bottom: 1px solid var(--ink);
+}
+
+/* Paper over the gutter on its left, where a hanging minus would show through. */
+.dome-head::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: -1px;
+  right: 100%;
+  width: var(--s-5);
+  background: var(--paper);
 }
 
 .has-second .dome-head { display: grid; grid-template-columns: var(--dome-columns); }
 
-.dome-col { display: flex; flex-direction: column; text-align: right; }
+.dome-col { display: flex; flex-direction: column; text-align: left; }
 
 .dome-pick {
   display: flex;
   flex-direction: column;
-  align-items: flex-end;
+  align-items: flex-start;
   gap: inherit;
   width: 100%;
   padding: var(--s-1) 0;
@@ -462,7 +557,7 @@
   border-radius: 0;
   font: inherit;
   color: inherit;
-  text-align: right;
+  text-align: left;
   cursor: pointer;
 }
 
@@ -488,18 +583,19 @@
 
 .dome-col-line { display: block; white-space: nowrap; }
 
-.datablock { --dome-columns: minmax(0, 1fr) 14ch minmax(0, 4.6rem); }
+.datablock { --dome-columns: minmax(0, 1fr) 8rem minmax(0, 4.6rem); }
 
-.datablock.has-second { --dome-columns: minmax(10.6rem, 1fr) 10ch 10ch 5.2rem; }
+.datablock.has-second { --dome-columns: minmax(10.6rem, 1fr) 8.25rem 8.25rem 5.2rem; }
 .has-second .row-value { font-size: var(--step-0); }
 
 .data-row { grid-template-columns: var(--dome-columns); }
 
+/* Saturation rows have no second value: their unit still belongs in the last column. */
+.data-row > .row-unit { grid-column: -2; }
+
 .row-value-second { display: none; }
 
 .has-second .row-value-second { display: block; }
-
-.has-second .v-int { display: inline-block; width: 4ch; text-align: right; }
 
 .is-dome .row-value { color: var(--liquid-ink); }
 .is-dome .row-value-second { color: var(--vapor-ink); }
@@ -507,12 +603,22 @@
 .is-pinned .dome-col.is-current .dome-col-name { color: var(--ink); }
 .is-pinned .dome-col.is-pinned-col .dome-col-name { color: var(--ink-3); }
 
-@media (max-width: 720px) {
+.group-row { display: block; }
+
+.group-head {
+  display: block;
+  padding: 0 0 var(--s-2);
+  text-align: left;
+}
+
+/* Two values with an exponent need about 34rem side by side; narrower, each row puts its
+   values on a second line under the name, the unit staying at the end of the first. */
+@container datablock (max-width: 34.5rem) {
   .datablock.has-second .data-row {
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 4.6rem;
     grid-template-areas:
-      "head unit"
-      "first second";
+      "head head unit"
+      "first second second";
     row-gap: var(--s-2);
   }
 
@@ -528,12 +634,42 @@
   }
 
   .datablock.has-second .dome-head {
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 4.6rem;
   }
 
   .datablock.has-second .dome-col-spacer { display: none; }
 
   .datablock.has-second .row-value { font-size: var(--step-1); }
+}
+
+/* On the narrowest phones two values with an exponent fit side by side one step smaller and
+   with a tighter gutter. */
+@container datablock (max-width: 22rem) {
+  .datablock.has-second .row-value { font-size: var(--step-0); }
+
+  .datablock.has-second .data-row,
+  .datablock.has-second .dome-head { column-gap: var(--s-2); }
+}
+
+/* A single column too narrow for name, value and unit on one line does the same. */
+@container datablock (max-width: 24rem) {
+  .datablock:not(.has-second) .data-row {
+    grid-template-columns: minmax(0, 1fr) 4.6rem;
+    grid-template-areas:
+      "head unit"
+      "first first";
+    row-gap: var(--s-1);
+  }
+
+  .datablock:not(.has-second) .row-head { grid-area: head; }
+  .datablock:not(.has-second) .row-value { grid-area: first; }
+
+  .datablock:not(.has-second) .row-unit {
+    grid-area: unit;
+    justify-self: end;
+    width: max-content;
+    max-width: 100%;
+  }
 }
 
 .datablock-actions { display: flex; align-items: center; flex-wrap: wrap; gap: var(--s-2); }
@@ -596,8 +732,8 @@
 .scan-row { border-bottom: 1px solid var(--rule); }
 
 .scan-cell {
-  padding: var(--s-1) var(--s-3) var(--s-1) 0;
-  text-align: right;
+  padding: var(--s-1) var(--s-4) var(--s-1) 0;
+  text-align: left;
   white-space: nowrap;
   font-family: var(--font-data);
   font-size: var(--step--1);
@@ -606,7 +742,8 @@
   letter-spacing: 0;
 }
 
-.scan-swept { color: var(--ink); }
+/* Room for a hanging minus (°C) inside the scroll box, which would otherwise clip it. */
+.scan-swept { color: var(--ink); padding-left: 1ch; }
 .scan-row > .scan-cell:not(.scan-swept) { color: var(--ink-2); }
 
 .scan-head { border-bottom: 1px solid var(--ink); }
@@ -631,12 +768,18 @@
   letter-spacing: var(--track-label);
   text-transform: uppercase;
   text-align: left;
-  padding-left: var(--s-3);
 }
 
 .scan-row.is-two-phase .scan-absent { color: var(--twophase-ink); }
 .scan-row.is-out-of-range .scan-absent { color: var(--ink-3); }
 .scan-row.is-solid .scan-absent { color: var(--solid-ink); }
 
-.scan-cell .v-frac { width: auto; }
 .scan-cell .v-dot { color: var(--ink-3); }
+
+.scan-bar { padding-top: var(--s-2); }
+
+.scan-bar-note {
+  font-family: var(--font-label);
+  font-size: var(--step--2);
+  color: var(--ink-3);
+}

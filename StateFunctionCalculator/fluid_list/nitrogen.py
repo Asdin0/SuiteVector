@@ -13,6 +13,8 @@ import GeneralClass
 import models
 
 class Nitrogen(GeneralClass.RealFluid):
+    fugacity_coefficient_defined=True
+
     def __init__(self):
         constants=models.FluidConstants(molar_mass_kg_mol=0.02801348,
                     critical_temperature_K=126.192,

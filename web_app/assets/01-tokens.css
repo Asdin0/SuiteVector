@@ -28,7 +28,7 @@
 
   --font-ui:    Archivo, system-ui, -apple-system, sans-serif;
   --font-label: 'Archivo Narrow', Archivo, system-ui, sans-serif;
-  --font-data:  'Atkinson Hyperlegible Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+  --font-data:  'Atkinson Hyperlegible Mono', 'Symbol Greek', ui-monospace, 'SF Mono', Menlo, monospace;
 
   --step--2: 0.6875rem;
   --step--1: 0.8125rem;
@@ -74,4 +74,13 @@
   src: url('fonts/atkinson-mono-latin-var.woff2') format('woff2-variations');
   font-weight: 400 700;
   font-display: swap;
+}
+
+/* Atkinson Mono is Latin only, so the Greek of the symbols fell back to Menlo, whose κ stands
+   almost as tall as K: κT and KT, compressibility and bulk modulus, read alike. A serif Greek
+   on Atkinson's x-height gives κ its own shape. */
+@font-face {
+  font-family: 'Symbol Greek';
+  src: local('Georgia'), local('Times New Roman'), local('DejaVu Serif'), local('Liberation Serif');
+  unicode-range: U+0370-03FF;
 }

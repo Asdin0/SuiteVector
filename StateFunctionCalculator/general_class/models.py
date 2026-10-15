@@ -82,31 +82,88 @@ class HelmholtzFunctions:
 
     reddens_pdev2_reddens_red_real_exp_helmholtz:   typing.Optional[float]=None
     reddens_pdev2_reddens_red_real_num_helmholtz:   typing.Optional[callable]=None
+    reddens_pdev2_reddens_red_real_helmholtz:       typing.Optional[float]=None
+
+    reddens_pdev3_reddens_red_real_exp_helmholtz:   typing.Optional[float]=None
+    reddens_pdev3_reddens_red_real_num_helmholtz:   typing.Optional[callable]=None
+    reddens_pdev3_reddens_red_real_helmholtz:       typing.Optional[float]=None
+
+    redtemp_pdev2_redtemp_red_ideal_exp_helmholtz:  typing.Optional[float]=None
+    redtemp_pdev2_redtemp_red_ideal_num_helmholtz:  typing.Optional[callable]=None
+    redtemp_pdev2_redtemp_red_ideal_helmholtz:      typing.Optional[float]=None
+
+    redtemp_pdev2_redtemp_red_real_exp_helmholtz:   typing.Optional[float]=None
+    redtemp_pdev2_redtemp_red_real_num_helmholtz:   typing.Optional[callable]=None
+    redtemp_pdev2_redtemp_red_real_helmholtz:       typing.Optional[float]=None
+
+    reddens_redtemp_pdev2_red_real_exp_helmholtz:   typing.Optional[float]=None
+    reddens_redtemp_pdev2_red_real_num_helmholtz:   typing.Optional[callable]=None
+    reddens_redtemp_pdev2_red_real_helmholtz:       typing.Optional[float]=None
 
 @dataclasses.dataclass(frozen=True)
 class StateFunctions:
-    density_kg_m3:          typing.Optional[float]=None
-    compressibility_factor: typing.Optional[float]=None
-    internal_energy_J_kg:   typing.Optional[float]=None
-    enthalpy_J_kg:          typing.Optional[float]=None
-    entropy_J_kg_K:         typing.Optional[float]=None
+    density_kg_m3:                                  typing.Optional[float]=None
+    compressibility_factor:                         typing.Optional[float]=None
+    internal_energy_J_kg:                           typing.Optional[float]=None
+    enthalpy_J_kg:                                  typing.Optional[float]=None
+    entropy_J_kg_K:                                 typing.Optional[float]=None
+    gibbs_energy_J_kg:                              typing.Optional[float]=None
+    helmholtz_energy_J_kg:                          typing.Optional[float]=None
+    isochoric_heat_capacity_J_kg_K:                 typing.Optional[float]=None
+    isobaric_heat_capacity_J_kg_K:                  typing.Optional[float]=None
+    heat_capacity_ratio:                            typing.Optional[float]=None
+    speed_of_sound_m_s:                             typing.Optional[float]=None
+    pressure_density_derivative_Pa_m3_kg:           typing.Optional[float]=None
+    pressure_density_second_derivative_Pa_m6_kg2:   typing.Optional[float]=None
+    pressure_temperature_derivative_Pa_K:           typing.Optional[float]=None
+    joule_thomson_coefficient_K_Pa:                 typing.Optional[float]=None
+    isentropic_expansion_coefficient:               typing.Optional[float]=None
+    isothermal_expansion_coefficient:               typing.Optional[float]=None
+    volume_expansivity_1_K:                         typing.Optional[float]=None
+    adiabatic_compressibility_1_Pa:                 typing.Optional[float]=None
+    adiabatic_bulk_modulus_Pa:                      typing.Optional[float]=None
+    isothermal_compressibility_1_Pa:                typing.Optional[float]=None
+    isothermal_bulk_modulus_Pa:                     typing.Optional[float]=None
+    second_virial_coefficient_m3_kg:                typing.Optional[float]=None
+    third_virial_coefficient_m6_kg2:                typing.Optional[float]=None
+    fugacity_coefficient:                           typing.Optional[float]=None
 
 
 @dataclasses.dataclass(frozen=True)
 class OutputFunctions:
-    temperature_input_K:        typing.Optional[float]=None
-    pressure_input_Pa:          typing.Optional[float]=None
-    phase:                      typing.Optional[str]=None
-    density_kg_m3:              typing.Optional[StateFunctions]=None
-    compressibility_factor:     typing.Optional[StateFunctions]=None
-    internal_energy_J_kg:       typing.Optional[StateFunctions]=None
-    enthalpy_J_kg:              typing.Optional[StateFunctions]=None
-    entropy_J_kg_K:             typing.Optional[StateFunctions]=None
-    dew_point_pressure_Pa:      typing.Optional[float]=None
-    dew_point_density_kg_m3:    typing.Optional[float]=None
-    bubble_point_pressure_Pa:   typing.Optional[float]=None
-    bubble_point_density_kg_m3: typing.Optional[float]=None
-    melting_point_pressure_Pa: typing.Optional[float]=None
+    temperature_input_K:                            typing.Optional[float]=None
+    pressure_input_Pa:                              typing.Optional[float]=None
+    phase:                                          typing.Optional[str]=None
+    density_kg_m3:                                  typing.Optional[StateFunctions]=None
+    compressibility_factor:                         typing.Optional[StateFunctions]=None
+    internal_energy_J_kg:                           typing.Optional[StateFunctions]=None
+    enthalpy_J_kg:                                  typing.Optional[StateFunctions]=None
+    entropy_J_kg_K:                                 typing.Optional[StateFunctions]=None
+    gibbs_energy_J_kg:                              typing.Optional[float]=None
+    helmholtz_energy_J_kg:                          typing.Optional[float]=None
+    isochoric_heat_capacity_J_kg_K:                 typing.Optional[float]=None
+    isobaric_heat_capacity_J_kg_K:                  typing.Optional[float]=None
+    heat_capacity_ratio:                            typing.Optional[float]=None
+    speed_of_sound_m_s:                             typing.Optional[float]=None
+    pressure_density_derivative_Pa_m3_kg:           typing.Optional[float]=None
+    pressure_density_second_derivative_Pa_m6_kg2:   typing.Optional[float]=None
+    pressure_temperature_derivative_Pa_K:           typing.Optional[float]=None
+    joule_thomson_coefficient_K_Pa:                 typing.Optional[float]=None
+    isentropic_expansion_coefficient:               typing.Optional[float]=None
+    isothermal_expansion_coefficient:               typing.Optional[float]=None
+    volume_expansivity_1_K:                         typing.Optional[float]=None
+    adiabatic_compressibility_1_Pa:                 typing.Optional[float]=None
+    adiabatic_bulk_modulus_Pa:                      typing.Optional[float]=None
+    isothermal_compressibility_1_Pa:                typing.Optional[float]=None
+    isothermal_bulk_modulus_Pa:                     typing.Optional[float]=None
+    second_virial_coefficient_m3_kg:                typing.Optional[float]=None
+    third_virial_coefficient_m6_kg2:                typing.Optional[float]=None
+    fugacity_coefficient:                           typing.Optional[float]=None
+    dew_point_pressure_Pa:                          typing.Optional[float]=None
+    dew_point_density_kg_m3:                        typing.Optional[float]=None
+    bubble_point_pressure_Pa:                       typing.Optional[float]=None
+    bubble_point_density_kg_m3:                     typing.Optional[float]=None
+    melting_point_pressure_Pa:                      typing.Optional[float]=None
 
 
 @dataclasses.dataclass(frozen=True)

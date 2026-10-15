@@ -1,6 +1,7 @@
 import json
 import math
 import os
+import re
 import urllib.parse
 
 import dash
@@ -80,23 +81,47 @@ def _security_headers(response):
 def _healthz():
     return {"status": "ok"}, 200
 
+# Empty for now: a row with an empty note shows its name as plain text, with nothing to open.
 PROPERTY_NOTES = {
-    "density_kg_m3": "Risolta per bisezione sull'equazione di pressione, non tabulata.",
-    "compressibility_factor": "Pv/RT. Vale 1 per il gas ideale; lo scarto da 1 misura quanto il fluido è reale.",
-    "internal_energy_J_kg": "Riferita allo stato di riferimento della correlazione, non a uno zero assoluto.",
-    "enthalpy_J_kg": "u + Pv. Le differenze fra due stati sono significative; il valore assoluto dipende dal riferimento.",
-    "entropy_J_kg_K": "Anch'essa riferita allo stato di riferimento della correlazione.",
-    "dew_point_pressure_Pa": "La pressione alla quale, a questa temperatura, il vapore comincia a condensare.",
-    "bubble_point_pressure_Pa": "La pressione alla quale, a questa temperatura, il liquido comincia a bollire.",
-    "dew_point_density_kg_m3": "Densità del vapore saturo: il ramo dilatato della curva di saturazione.",
-    "bubble_point_density_kg_m3": "Densità del liquido saturo: il ramo denso della curva di saturazione.",
+    "density_kg_m3": "",
+    "compressibility_factor": "",
+    "internal_energy_J_kg": "",
+    "enthalpy_J_kg": "",
+    "entropy_J_kg_K": "",
+    "isobaric_heat_capacity_J_kg_K": "",
+    "isochoric_heat_capacity_J_kg_K": "",
+    "heat_capacity_ratio": "",
+    "speed_of_sound_m_s": "",
+    "joule_thomson_coefficient_K_Pa": "",
+    "isentropic_expansion_coefficient": "",
+    "isothermal_expansion_coefficient": "",
+    "volume_expansivity_1_K": "",
+    "isothermal_compressibility_1_Pa": "",
+    "isothermal_bulk_modulus_Pa": "",
+    "adiabatic_compressibility_1_Pa": "",
+    "adiabatic_bulk_modulus_Pa": "",
+    "gibbs_energy_J_kg": "",
+    "helmholtz_energy_J_kg": "",
+    "fugacity_coefficient": "",
+    "pressure_temperature_derivative_Pa_K": "",
+    "pressure_density_derivative_Pa_m3_kg": "",
+    "pressure_density_second_derivative_Pa_m6_kg2": "",
+    "second_virial_coefficient_m3_kg": "",
+    "third_virial_coefficient_m6_kg2": "",
+    "dew_point_pressure_Pa": "",
+    "bubble_point_pressure_Pa": "",
+    "dew_point_density_kg_m3": "",
+    "bubble_point_density_kg_m3": "",
 }
 
+# Each menu lists the symbols that share its unit exactly; the quantities whose unit is built
+# from it (units.COMPOUND) follow it as well and show their own unit on their row.
 UNIT_KINDS = (
-    {"kind": "density", "symbols": "ρ", "name": "densità"},
-    {"kind": "specific_energy", "symbols": "u, h", "name": "energia interna ed entalpia"},
-    {"kind": "specific_entropy", "symbols": "s", "name": "entropia"},
-    {"kind": "pressure", "symbols": "P", "name": "pressioni di rugiada e bolla"},
+    {"kind": "density", "symbols": ("ρ",), "name": "densità e grandezze derivate"},
+    {"kind": "specific_energy", "symbols": ("u", "h", "g", "a"),
+     "name": "energia interna, entalpia, energie di Gibbs e di Helmholtz"},
+    {"kind": "specific_entropy", "symbols": ("s", "c_p", "c_v"), "name": "entropia e calori specifici"},
+    {"kind": "pressure", "symbols": ("P",), "name": "pressione e grandezze derivate"},
 )
 
 SCAN_STATUS = {
@@ -104,6 +129,20 @@ SCAN_STATUS = {
     "out-of-range": "fuori range",
     "solid": "solido",
 }
+
+SCAN_COLUMNS = (
+    {"key": "density_kg_m3", "symbol": "ρ", "kind": "density"},
+    {"key": "compressibility_factor", "symbol": "Z", "kind": "dimensionless"},
+    {"key": "enthalpy_J_kg", "symbol": "h", "kind": "specific_energy"},
+    {"key": "entropy_J_kg_K", "symbol": "s", "kind": "specific_entropy"},
+)
+
+# What the scan table shows; its copy and CSV always carry every state property.
+SCAN_GROUPS = {"state": {"label": "Stato", "columns": SCAN_COLUMNS}}
+SCAN_GROUPS.update({group["key"]: {"label": group["title"], "columns": group["properties"]}
+                    for group in backend_bridge.PROPERTY_GROUPS})
+
+STATE_KEYS = frozenset(p["key"] for p in backend_bridge.STATE_PROPERTIES)
 
 
 def _one_of(value, allowed, default):
@@ -139,7 +178,7 @@ def _clean_pin(pinned):
         "phase_label": backend_bridge.PHASE_LABELS.get(
             _one_of(pinned.get("phase"), backend_bridge.PHASE_LABELS, None), "—"),
         "values": {p["key"]: _number(values.get(p["key"]))
-                   for p in backend_bridge.PROPERTIES},
+                   for p in backend_bridge.STATE_PROPERTIES},
     }
 
 
@@ -177,16 +216,34 @@ def _number_input(input_id, value, step, label_text, unit_kind, unit_value):
     )
 
 
+def _symbol(text):
+    base, _, subscript = text.partition("_")
+    return [base, html.Sub(subscript)] if subscript else text
+
+
+def _symbols(texts):
+    out = []
+    for index, text in enumerate(texts):
+        out += ([", "] if index else []) + [html.Span(_symbol(text))]
+    return out
+
+
+def _long_symbol(text):
+    return len(text.replace("_", "")) > 4
+
+
 def _data_row(prop, unit_kind, second=False):
     key = prop["key"]
     note = PROPERTY_NOTES.get(key)
-    symbol = html.Span(prop["symbol"], className="row-symbol")
-    name = html.Span(prop["name"], className="row-name")
+    symbol = html.Span(_symbol(prop["symbol"]), className="row-symbol")
+    # A short last word such as P(ρ) stays with the word before it instead of wrapping alone.
+    name = html.Span(re.sub(r" (\S{1,4})$", "\u00a0\\1", prop["name"]), className="row-name")
     return html.Tr(
         className="data-row", id=f"row-{key}", role="row",
         children=[
             html.Th(
-                className="row-head", scope="row", role="rowheader",
+                className="row-head" + (" has-long-symbol" if _long_symbol(prop["symbol"]) else ""),
+                scope="row", role="rowheader",
                 children=[symbol, name] if not note else [
                     symbol,
                     html.Details(
@@ -210,8 +267,7 @@ def _data_row(prop, unit_kind, second=False):
                 className="row-unit", role="cell",
                 children=html.Span(
                     id=f"unit-label-{key}", className="row-unit-fixed",
-                    children="—" if unit_kind == "dimensionless"
-                    else units.label(unit_kind, units.DEFAULTS[unit_kind]),
+                    children=units.display_label(unit_kind, units.DEFAULTS),
                 ),
             ),
         ],
@@ -225,7 +281,7 @@ def _unit_bar():
             html.Div(
                 className="unit-pick",
                 children=[
-                    html.Span(spec["symbols"], className="unit-pick-symbol",
+                    html.Span(_symbols(spec["symbols"]), className="unit-pick-symbol",
                               **{"aria-hidden": "true"}),
                     _named_dropdown(
                         dcc.Dropdown(
@@ -241,16 +297,40 @@ def _unit_bar():
     )
 
 
-def _data_table(properties, caption, second=False, head=None):
+def _data_table(properties, caption):
     body = html.Tbody(
         role="rowgroup",
-        children=[_data_row(p, p["kind"], second=second) for p in properties],
+        children=[_data_row(p, p["kind"]) for p in properties],
     )
     return html.Table(
         className="data-grid", role="table",
-        children=[html.Caption(caption, className="visually-hidden")]
-                 + ([html.Thead(head, role="rowgroup")] if head is not None else [])
-                 + [body],
+        children=[html.Caption(caption, className="visually-hidden"), body],
+    )
+
+
+def _state_table():
+    def group(spec):
+        title = f"group-{spec['key']}"
+        head = html.Tr(
+            className="group-row", role="row",
+            children=html.Th(spec["title"], id=title, scope="rowgroup", colSpan=4,
+                             role="rowheader", className="datablock-title sub group-head"),
+        )
+        return html.Tbody(
+            role="rowgroup", **{"aria-labelledby": title},
+            children=[head] + [_data_row(p, p["kind"], second=True) for p in spec["properties"]],
+        )
+
+    return html.Table(
+        className="data-grid", role="table",
+        children=[
+            html.Caption("Proprietà di stato del fluido alle condizioni richieste.",
+                         className="visually-hidden"),
+            html.Thead(html.Tr(id="dome-head", className="dome-head", role="row"), role="rowgroup"),
+            html.Tbody(role="rowgroup",
+                       children=[_data_row(p, p["kind"], second=True)
+                                 for p in backend_bridge.PROPERTIES]),
+        ] + [group(spec) for spec in backend_bridge.PROPERTY_GROUPS],
     )
 
 
@@ -258,12 +338,19 @@ def _value_cell(value, decimals=None):
     if decimals is None:
         decimals = fmt.significant_decimals(value)
     p = fmt.parts(value, decimals)
+    # The sign hangs left of the column so that every value starts on its first digit.
+    negative = p["integer"].startswith("-")
     fraction = ([html.Span(".", className="v-dot"), p["fraction"]] if p["fraction"] else [])
     return [
-        html.Span(p["integer"], className="v-int"),
+        html.Span("-" if negative else "", className="v-sign"),
+        html.Span(p["integer"][1:] if negative else p["integer"], className="v-int"),
         html.Span(fraction, className="v-frac" + ("" if p["fraction"] else " is-empty")),
         html.Span(p["exponent"], className="v-exp"),
     ]
+
+
+def _undefined_cell():
+    return [html.Span("non definito", className="v-na")]
 
 
 def serve_layout():
@@ -463,11 +550,7 @@ def serve_layout():
                             ),
                             _unit_bar(),
                             html.P(id="dome-note", className="dome-note"),
-                            _data_table(
-                                backend_bridge.PROPERTIES, second=True,
-                                caption="Proprietà di stato del fluido alle condizioni richieste.",
-                                head=html.Tr(id="dome-head", className="dome-head", role="row"),
-                            ),
+                            _state_table(),
                             html.Div(
                                 id="sat-section",
                                 children=[
@@ -519,6 +602,24 @@ def serve_layout():
                                         ],
                                     ),
                                     html.P(id="scan-note", className="range-note"),
+                                    html.Div(
+                                        className="unit-bar scan-bar",
+                                        children=[
+                                            html.Span("Colonne", className="unit-bar-label"),
+                                            _named_dropdown(
+                                                dcc.Dropdown(
+                                                    id="scan-group", value="state",
+                                                    options=[{"label": spec["label"], "value": key}
+                                                             for key, spec in SCAN_GROUPS.items()],
+                                                    clearable=False, searchable=False,
+                                                    className="unit-pick-select",
+                                                ),
+                                                "Grandezze mostrate nella tabella di scansione",
+                                            ),
+                                            html.Span("Copia e CSV contengono tutte le grandezze.",
+                                                      className="scan-bar-note"),
+                                        ],
+                                    ),
                                     html.Div(className="scan-scroll",
                                              children=html.Table(id="scan-table",
                                                                  className="scan-grid",
@@ -767,12 +868,12 @@ app.clientside_callback(
     prevent_initial_call=True,
 )
 
-ALL_PROPERTIES = backend_bridge.PROPERTIES + backend_bridge.SATURATION_PROPERTIES
+ALL_PROPERTIES = backend_bridge.STATE_PROPERTIES + backend_bridge.SATURATION_PROPERTIES
 
 VALUE_OUTPUTS = [Output(f"val-{p['key']}", "children") for p in ALL_PROPERTIES]
 
 VALUE2_OUTPUTS = [Output(f"val2-{p['key']}", "children")
-                  for p in backend_bridge.PROPERTIES]
+                  for p in backend_bridge.STATE_PROPERTIES]
 
 UNIT_LABEL_OUTPUTS = [Output(f"unit-label-{p['key']}", "children") for p in ALL_PROPERTIES]
 
@@ -799,14 +900,16 @@ UNIT_LABEL_OUTPUTS = [Output(f"unit-label-{p['key']}", "children") for p in ALL_
     Input("unit-density", "value"), Input("unit-specific_energy", "value"),
     Input("unit-specific_entropy", "value"), Input("unit-pressure", "value"),
     Input("scan-request", "value"), Input("pinned", "data"),
+    Input("scan-group", "value"),
     State("base-key", "data"),
 )
 def recompute(fluid, mode, t_raw, second_raw, t_unit, second_unit,
               u_density, u_energy, u_entropy, u_pressure,
-              scan_raw, pinned, base_key_prev):
+              scan_raw, pinned, scan_group, base_key_prev):
     fluid = _one_of(fluid, backend_bridge.FLUIDS, backend_bridge.DEFAULT_FLUID)
     mode = _one_of(mode, ("tp", "trho"), "tp")
     second_kind = "density" if mode == "trho" else "pressure"
+    scan_group = _one_of(scan_group, SCAN_GROUPS, "state")
 
     display = {
         kind: _one_of(chosen, units.UNITS[kind]["options"], units.DEFAULTS[kind])
@@ -914,30 +1017,41 @@ def recompute(fluid, mode, t_raw, second_raw, t_unit, second_unit,
     values, values2, unit_labels, export_rows = [], [], [], []
     for prop in ALL_PROPERTIES:
         kind = prop["kind"]
-        unit = display[kind]
-        unit_labels.append("—" if kind == "dimensionless" else units.label(kind, unit))
+        unit_label = units.display_label(kind, display)
+        unit_labels.append(unit_label)
+        in_state = prop["key"] in STATE_KEYS
+
+        if not backend_bridge.defined(fluid, prop["key"]):
+            values.append(_undefined_cell())
+            if in_state:
+                values2.append(_undefined_cell())
+            continue
+
         primary = (liquid if in_dome else (state or {})).get(prop["key"])
-        primary_display = units.from_si(kind, unit, primary)
+        primary_display = units.display_value(kind, display, primary)
         decimals = fmt.significant_decimals(primary_display)
         values.append(_value_cell(primary_display, decimals))
 
         secondary_display = None
-        if prop in backend_bridge.PROPERTIES:
+        if in_state:
             if in_dome:
                 secondary = vapor.get(prop["key"])
             else:
                 secondary = pinned_values.get(prop["key"])
-            secondary_display = units.from_si(kind, unit, secondary)
+            secondary_display = units.display_value(kind, display, secondary)
             values2.append(_value_cell(secondary_display))
 
-        if in_dome and prop not in backend_bridge.PROPERTIES:
+        if in_dome and not in_state:
             continue
 
         row = [prop["symbol"], prop["name"], primary_display]
         if second_column:
             row.append(secondary_display)
-        row.append(units.label(kind, unit))
+        row.append(unit_label)
         export_rows.append(row)
+
+    scan_columns = _defined(fluid, SCAN_GROUPS[scan_group]["columns"])
+    export_columns = _defined(fluid, backend_bridge.STATE_PROPERTIES)
 
     query = urllib.parse.urlencode({
         "fluid": fluid, "mode": mode, "tu": t_unit, "pu": second_unit,
@@ -975,11 +1089,17 @@ def recompute(fluid, mode, t_raw, second_raw, t_unit, second_unit,
             _pinnable(state, phase), invalid,
             {} if scan_shown else {"display": "none"},
             _scan_title(scan), _scan_note(scan, lim, t_unit, display["pressure"]),
-            _scan_rows(scan, display, t_unit, display["pressure"]),
-            _scan_export(scan, lim, display, t_unit, display["pressure"], "\t", "."),
-            _scan_export(scan, lim, display, t_unit, display["pressure"], ";", ","),
+            _scan_rows(scan, display, t_unit, display["pressure"], scan_columns),
+            _scan_export(scan, lim, display, t_unit, display["pressure"], export_columns,
+                         "\t", "."),
+            _scan_export(scan, lim, display, t_unit, display["pressure"], export_columns,
+                         ";", ","),
             "action action-text" if pinned_values else "action action-text is-hidden",
             ] + values + values2 + unit_labels
+
+
+def _defined(fluid, properties):
+    return [p for p in properties if backend_bridge.defined(fluid, p["key"])]
 
 
 def _pinnable(state, phase):
@@ -990,7 +1110,7 @@ def _pinnable(state, phase):
         "pressure_Pa": state.get("pressure_Pa"),
         "phase": state.get("phase"),
         "phase_label": state.get("phase_label"),
-        "values": {p["key"]: state.get(p["key"]) for p in backend_bridge.PROPERTIES},
+        "values": {p["key"]: state.get(p["key"]) for p in backend_bridge.STATE_PROPERTIES},
     }
 
 
@@ -1213,13 +1333,6 @@ def _pin_head(pin, current, t_unit, p_unit):
         spacer("Unità"),
     ]
 
-SCAN_COLUMNS = (
-    {"key": "density_kg_m3", "symbol": "ρ", "kind": "density"},
-    {"key": "compressibility_factor", "symbol": "Z", "kind": "dimensionless"},
-    {"key": "enthalpy_J_kg", "symbol": "h", "kind": "specific_energy"},
-    {"key": "entropy_J_kg_K", "symbol": "s", "kind": "specific_entropy"},
-)
-
 
 def _resolve_scan(raw, fluid):
     if not raw:
@@ -1301,58 +1414,46 @@ def _scan_note(scan, lim, t_unit, p_unit):
     return f"{head} {'; '.join(parts).capitalize()}."
 
 
-def _scan_rows(scan, display, t_unit, p_unit):
+def _scan_rows(scan, display, t_unit, p_unit, columns):
     if not scan or not scan.get("rows"):
         return []
 
     swept = _swept(scan)
     swept_unit = t_unit if swept["kind"] == "temperature" else p_unit
 
-    def unit_for(kind):
-        if kind == "temperature":
-            return t_unit
-        if kind == "pressure":
-            return p_unit
-        return display[kind]
+    def swept_value(row):
+        return units.from_si(swept["kind"], swept_unit, row[swept["key"]])
+
+    def value(column, row):
+        return units.display_value(column["kind"], display, row.get(column["key"]))
+
+    def heading(symbol, unit):
+        return html.Th(
+            scope="col", role="columnheader", className="scan-cell",
+            children=[html.Span(_symbol(symbol), className="scan-symbol"),
+                      html.Span(unit, className="scan-unit")],
+        )
 
     header = html.Thead(role="rowgroup", children=html.Tr(
         className="scan-row scan-head", role="row",
-        children=[html.Th(
-            scope="col", role="columnheader", className="scan-cell",
-            children=[html.Span(column["symbol"], className="scan-symbol"),
-                      html.Span(units.label(column["kind"], unit_for(column["kind"]))
-                                if column["kind"] != "dimensionless" else "—",
-                                className="scan-unit")],
-        ) for column in (swept,) + SCAN_COLUMNS],
+        children=[heading(swept["symbol"], units.label(swept["kind"], swept_unit))]
+                 + [heading(c["symbol"], units.display_label(c["kind"], display))
+                    for c in columns],
     ))
 
-    def column_values(column):
-        unit = unit_for(column["kind"])
-        return [units.from_si(column["kind"], unit, row.get(column["key"]))
-                for row in scan["rows"] if row["status"] == "ok"]
-
-    decimals = {}
-    for column in (swept,) + SCAN_COLUMNS:
-        seen = [units.from_si(swept["kind"], swept_unit, row[swept["key"]])
-                for row in scan["rows"]] if column is swept else column_values(column)
-        decimals[column["symbol"]] = max(
-            (fmt.significant_decimals(v) for v in seen if v is not None), default=4)
-
+    # Columns align on the first digit, so each value keeps its own significant digits
+    # instead of padding a whole column to its widest decimals.
     body = []
     for row in scan["rows"]:
-        shown = units.from_si(swept["kind"], swept_unit, row[swept["key"]])
-        head = _value_cell(shown, decimals[swept["symbol"]])
-        cells = [html.Th(head, scope="row", role="rowheader",
-                         className="scan-cell scan-swept")]
+        cells = [html.Th(_value_cell(swept_value(row)), scope="row",
+                         role="rowheader", className="scan-cell scan-swept")]
         if row["status"] == "ok":
-            for column in SCAN_COLUMNS:
-                value = units.from_si(column["kind"], unit_for(column["kind"]),
-                                      row.get(column["key"]))
-                cells.append(html.Td(_value_cell(value, decimals[column["symbol"]]),
+            for column in columns:
+                cells.append(html.Td(_value_cell(value(column, row)),
                                      role="cell", className="scan-cell"))
         else:
             cells.append(html.Td(SCAN_STATUS[row["status"]], role="cell",
-                                 colSpan=len(SCAN_COLUMNS),
+                                 colSpan=len(columns),
                                  className="scan-cell scan-absent"))
         body.append(html.Tr(cells, role="row",
                             className="scan-row" + (f" is-{row['status']}"
@@ -1363,19 +1464,12 @@ def _scan_rows(scan, display, t_unit, p_unit):
             header, html.Tbody(body, role="rowgroup")]
 
 
-def _scan_export(scan, lim, display, t_unit, p_unit, sep, decimal):
+def _scan_export(scan, lim, display, t_unit, p_unit, columns, sep, decimal):
     if not scan or not scan.get("rows"):
         return ""
 
     swept = _swept(scan)
     swept_unit = t_unit if swept["kind"] == "temperature" else p_unit
-
-    def unit_for(kind):
-        if kind == "temperature":
-            return t_unit
-        if kind == "pressure":
-            return p_unit
-        return display[kind]
 
     def cell(value):
         text = fmt.export(value, decimal) if (value is None or isinstance(value, (int, float))) \
@@ -1397,19 +1491,18 @@ def _scan_export(scan, lim, display, t_unit, p_unit, sep, decimal):
         line([kind_label + " a", units.from_si(fixed_kind, fixed_unit, scan["fixed_si"]),
               units.label(fixed_kind, fixed_unit)]),
         "",
-        line([swept["symbol"]] + [c["symbol"] for c in SCAN_COLUMNS] + ["Nota"]),
+        line([swept["symbol"]] + [c["symbol"] for c in columns] + ["Nota"]),
         line([units.label(swept["kind"], swept_unit)]
-             + [units.label(c["kind"], unit_for(c["kind"])) if c["kind"] != "dimensionless"
-                else "—" for c in SCAN_COLUMNS] + [""]),
+             + [units.display_label(c["kind"], display) for c in columns] + [""]),
     ]
 
     for row in scan["rows"]:
         values = [units.from_si(swept["kind"], swept_unit, row[swept["key"]])]
         if row["status"] == "ok":
-            values += [units.from_si(c["kind"], unit_for(c["kind"]), row.get(c["key"]))
-                       for c in SCAN_COLUMNS]
+            values += [units.display_value(c["kind"], display, row.get(c["key"]))
+                       for c in columns]
         else:
-            values += [None] * len(SCAN_COLUMNS)
+            values += [None] * len(columns)
         values.append(SCAN_STATUS.get(row["status"], ""))
         out.append(line(values))
 

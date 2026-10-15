@@ -68,11 +68,27 @@
 
   var sweeps = 0;
 
+  // The scan table sits below thirty rows of state: once a sweep's rows arrive, bring them
+  // into view without moving focus off the chart.
+  var reveal = false;
+
+  function showScan() {
+    if (!reveal) return;
+    var section = document.getElementById("scan-section");
+    if (!section || section.style.display === "none" ||
+        !section.querySelector("tbody .scan-row")) return;
+    reveal = false;
+    var still = window.matchMedia &&
+      window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    section.scrollIntoView({ block: "nearest", behavior: still ? "auto" : "smooth" });
+  }
+
   function sweep(axis, fixed, lo, hi, p_unit) {
     var input = document.getElementById("scan-request");
     if (!input || !isFinite(fixed) || !isFinite(lo) || !isFinite(hi)) return;
     if (fixed <= 0 || lo <= 0 || hi <= 0) return;
     sweeps += 1;
+    reveal = true;
     nativeSet(input, JSON.stringify({
       axis: axis, fixed: fixed, lo: lo, hi: hi,
       pu: p_unit || "bar", n: sweeps
@@ -241,6 +257,7 @@
   function pass() {
     bind();
     describe();
+    showScan();
   }
 
   function start() {

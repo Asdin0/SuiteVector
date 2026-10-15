@@ -7,3 +7,4 @@ venv
 **/.pytest_cache
 StateFunctionCalculator/test
 EfficiencyCalculator/test_*.py
+web_app/test_*.py
